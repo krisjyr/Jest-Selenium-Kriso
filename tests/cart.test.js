@@ -1,75 +1,87 @@
-const { Builder, By } = require('selenium-webdriver')
-const chrome = require('selenium-webdriver/chrome');
-let Homepage = require('../pageobjects/homePage');
-let Cartpage = require('../pageobjects/homePage');
+const { Builder, By, until } = require("selenium-webdriver");
+const chrome = require("selenium-webdriver/chrome");
+let HomePage = require("../pageobjects/homePage");
+let CartPage = require("../pageobjects/cartPage");
 
-require('chromedriver')
+require("chromedriver");
 
-let driver; 
-const TIMEOUT = 10000;
-let cartSumOfOne = 0; 
-let cartSumOfTwo = 0; 
+let driver;
+const TIMEOUT = 1000;
 
-describe('Shopping cart workflow', () => {
-
-  //use beforeAll when you need action before ALL tests
-  //use beforeEach when you need action before EACH test
-
-  beforeAll( async () => {
+describe('Add Books to Shopping Cart', () => {
+  beforeAll(async () => {
     driver = await new Builder().forBrowser('chrome')
-    //uncomment if you want to run in headless mode
-    //.setChromeOptions(new chrome.Options().addArguments('--headless'))
-    .build()
-    await driver.manage().window().maximize()
-    await driver.manage().setTimeouts({ implicit: TIMEOUT })
-
-    Homepage = new Homepage(driver)
-    await Homepage.openUrl()
-    await Homepage.acceptCookies()
-  });
-  
-  afterAll( async () => {
-    //uncomment if you want to close the browser in the end
-    await driver.quit()
-  });
-  
-  test('Test logo element is visible', async () => {
-    await Homepage.verifyLogo()
+      //.setChromeOptions(new chrome.Options().addArguments('--headless'))
+      .build();
+    await driver.manage().window().maximize();
+    await driver.manage().setTimeouts({ implicit: TIMEOUT });
+    await driver.get('https://www.kriso.ee');
   });
 
-  test('Test add first item to shopping cart', async () => {
-    await Homepage.openBookPage(1)
-    await Homepage.addItemToShoppingCart()
-    await Homepage.verifyItemAddedToCart()
+  afterAll(async () => {
+    await driver.quit();
   });
 
-  test('Test continue shopping', async () => {
-    await Homepage.continueShopping()
+  test('Open homepage and verify logo/title, remove cookies', async () => {
+    HomePage = new HomePage(driver);
+    await HomePage.acceptCookies();
+    await HomePage.verifyLogo();
   });
 
-  test('Test add second item to shopping cart', async () => {
-    await Homepage.openBookPage(2)
-    await Homepage.addItemToShoppingCart()
-    await Homepage.verifyItemAddedToCart()
+  test('Search for any keyword', async () => {
+    await HomePage.searchForKeyword('raamat');
+    const products = await HomePage.getProducts();
+    expect(products.length).toBeGreaterThan(0);
   });
 
-  test('Test verify cart has two items', async () => {
-    Cartpage = await Homepage.openShoppingCart()
-    await Cartpage.verifyCartQuantity(2)
+  let firstBookTitle = '';
+  let secondBookTitle = '';
+
+  test('Add first book to shopping cart', async () => {
+    firstBookTitle = await HomePage.addFirstProductToCart();
+    const cartPage = new CartPage(driver);
+    await cartPage.verifyCartQuantity(1);
   });
 
-  test('Test verify cart has correct sum of two', async () => {
-    cartSumOfTwo = await Cartpage.verifyCartSumIsCorrect()
+  test('Add second book to shopping cart', async () => {
+    secondBookTitle = await HomePage.addSecondProductToCart();
+    const cartPage = new CartPage(driver);
+    await cartPage.verifyCartQuantity(2);
   });
 
-  test('Test remove one item from the shopping cart', async () => {
-    await Cartpage.removeItemFromCart(1)
-    await Cartpage.verifyCartQuantity(1)
+  test('Go to shopping cart', async () => {
+    const cartPage = await HomePage.openShoppingCart();
+    const cartItems = await cartPage.getCartItems();
+    expect(cartItems.length).toBe(2);
   });
 
-  test('Test verify cart has correct sum of one', async () => {
-    cartSumOfOne = await Cartpage.verifyCartSumIsCorrect()
-    expect(cartSumOfOne).toBeLessThan(cartSumOfTwo)
+  test('Verify two correct items are in the cart', async () => {
+    const cartPage = new CartPage(driver);
+    const cartTitles = await cartPage.getCartItemTitles();
+    expect(cartTitles).toEqual(expect.arrayContaining([firstBookTitle, secondBookTitle]));
   });
 
+  let totalBeforeRemoval = 0;
+  let totalAfterRemoval = 0;
+
+  test('Verify total price is accurate before removing', async () => {
+    const cartPage = new CartPage(driver);
+    totalBeforeRemoval = await cartPage.getTotalPrice();
+    expect(totalBeforeRemoval).toBeGreaterThan(0);
+  });
+
+  test('Remove first item and verify', async () => {
+    const cartPage = new CartPage(driver);
+    await cartPage.removeItemFromCart(1);
+    const cartItemsAfter = await cartPage.getCartItems();
+    expect(cartItemsAfter.length).toBe(1);
+    const remainingTitle = await cartItemsAfter[0].findElement(By.css('.title > a')).getText();
+    expect(remainingTitle).toBe(secondBookTitle);
+  });
+
+  test('Verify total price updates correctly after removal', async () => {
+    const cartPage = new CartPage(driver);
+    totalAfterRemoval = await cartPage.getTotalPrice();
+    expect(totalAfterRemoval).toBeLessThan(totalBeforeRemoval);
+  });
 });

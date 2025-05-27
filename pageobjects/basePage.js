@@ -1,7 +1,5 @@
-// parent page for all the functions across the site
 const { until } = require('selenium-webdriver')
 
-let driver 
 const TIMEOUT = 5000;
 
 module.exports = class Page  {
@@ -38,6 +36,11 @@ module.exports = class Page  {
         return await this.driver.findElement(locator).getText()
     }
 
+    async findAndClick(locator) {
+        const el = await this.driver.findElement(locator);
+        return await el.click();
+    }
+
     async waitUntilElementText(locator, text) {
         let element = await this.getElement(locator)
         return this.driver.wait(until.elementTextIs(element, text), TIMEOUT)
@@ -46,4 +49,9 @@ module.exports = class Page  {
     async getElementFromInsideElement(element, locator) {
         return await element.findElement(locator)
     }
+
+    async getChildText(parent, locator) {
+        const el = await parent.findElement(locator);
+        return await el.getText();
+      }
 }
